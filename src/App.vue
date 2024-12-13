@@ -70,7 +70,8 @@ export default defineComponent({
     };
 
     onMounted(() => {
-      socket = new WebSocket('ws://localhost:3000');
+      const websocketUrl = import.meta.env.VITE_WEBSOCKET_URL;
+      socket = new WebSocket(websocketUrl);
 
       socket.onmessage = (event: MessageEvent) => {
         const data = JSON.parse(event.data);
