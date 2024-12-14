@@ -1,11 +1,11 @@
- <template>
+<template>
   <div class="chat-app">
     <div class="chat-window">
       <div class="messages">
         <div
           v-for="(msg, index) in messages"
           :key="index"
-          :class="['message', msg.sender === username ? 'sent' : 'received']"
+          :class="['message', msg.sender === username ? 'sent' : 'received', msg.animate ? 'animate' : '']"
         >
           <img
             :src="msg.avatar"
@@ -30,80 +30,76 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, onMounted, onBeforeUnmount } from 'vue';
+import { defineComponent } from 'vue';
 
 export default defineComponent({
   name: 'App',
-  setup() {
-    const messages = ref<{ sender: string; text: string; avatar: string }[]>([]);
-    const newMessage = ref<string>('');
-    const username = ref<string>(`User${Math.floor(Math.random() * 1000)}`);
-    const avatars = [
-      'https://via.placeholder.com/40/FF5733',
-      'https://via.placeholder.com/40/33FF57',
-      'https://via.placeholder.com/40/5733FF',
-      'https://via.placeholder.com/40/Ff33A1',
-      'https://via.placeholder.com/40/A1Ff33',
-      'https://via.placeholder.com/40/33A1Ff',
-      'https://via.placeholder.com/40/FFF333',
-      'https://via.placeholder.com/40/33FFFf',
-      'https://via.placeholder.com/40/5733A1',
-    ];
-    const userAvatar = ref<string>(
-      avatars[Math.floor(Math.random() * avatars.length)]
-    );
+  data() {
+    return {
+      messages: [] as { sender: string; text: string; avatar: string, animate: boolean }[],
+      newMessage: '',
+      username: `User${Math.floor(Math.random() * 1000)}`,
+      avatars: [
+        'https://robohash.org/aaaaaa',
+        'https://robohash.org/bbbbbb',
+        'https://robohash.org/cccccc',
+        'https://robohash.org/dddddd',
+        'https://robohash.org/eeeeee',
+        'https://robohash.org/ffffff',
+        'https://robohash.org/gggggg',
+        'https://robohash.org/hhhhhh',
+        'https://robohash.org/iiiiii',
+      ],
+      userAvatar: '',
+      socket: null as WebSocket | null,
+    };
+  },
+  mounted() {
+    this.userAvatar = this.avatars[Math.floor(Math.random() * this.avatars.length)];
+    const websocketUrl = import.meta.env.VITE_WEBSOCKET_URL;
+    this.socket = new WebSocket(websocketUrl);
 
-    let socket: WebSocket | null = null;
+    this.socket.onmessage = (event: MessageEvent) => {
+      const data = JSON.parse(event.data);
 
-    const sendMessage = () => {
-      if (socket && newMessage.value.trim()) {
-        const message = {
-          sender: username.value,
-          text: newMessage.value,
-          avatar: userAvatar.value,
-        };
+      const isDuplicate = this.messages.some(
+        (msg) =>
+          msg.text === data.text &&
+          msg.sender === data.sender &&
+          msg.avatar === data.avatar
+      );
 
-        socket.send(JSON.stringify(message));
-
-        newMessage.value = '';
+      if (!isDuplicate) {
+        this.messages.push(data);
       }
     };
 
-    onMounted(() => {
-      const websocketUrl = import.meta.env.VITE_WEBSOCKET_URL;
-      socket = new WebSocket(websocketUrl);
+    this.socket.onclose = () => {
+      console.log('WebSocket connection closed');
+    };
 
-      socket.onmessage = (event: MessageEvent) => {
-        const data = JSON.parse(event.data);
+    this.socket.onerror = (error: Event) => {
+      console.error('WebSocket error:', error);
+    };
+  },
+  beforeUnmount() {
+    if (this.socket) {
+      this.socket.close();
+    }
+  },
+  methods: {
+    sendMessage() {
+      if (this.socket && this.newMessage.trim()) {
+        const message = {
+          sender: this.username,
+          text: this.newMessage,
+          avatar: this.userAvatar,
+        };
 
-        const isDuplicate = messages.value.some(
-          (msg) =>
-            msg.text === data.text &&
-            msg.sender === data.sender &&
-            msg.avatar === data.avatar
-        );
-
-        if (!isDuplicate) {
-          messages.value.push(data);
-        }
-      };
-
-      socket.onclose = () => {
-        console.log('WebSocket connection closed');
-      };
-
-      socket.onerror = (error: Event) => {
-        console.error('WebSocket error:', error);
-      };
-    });
-
-    onBeforeUnmount(() => {
-      if (socket) {
-        socket.close();
+        this.socket.send(JSON.stringify(message));
+        this.newMessage = '';
       }
-    });
-
-    return { messages, newMessage, sendMessage, username, avatars, userAvatar };
+    },
   },
 });
 </script>
@@ -114,12 +110,12 @@ export default defineComponent({
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
+  min-height: 100vh;
   font-family: Arial, sans-serif;
 }
 
 .chat-window {
-  width: 400px;
+  width: 700px;
   border: 1px solid #ccc;
   border-radius: 8px;
   display: flex;
@@ -130,22 +126,38 @@ export default defineComponent({
 
 .messages {
   flex: 1;
-  padding: 16px;
+  padding: 18px;
   overflow-y: auto;
   background: #f9f9f9;
   display: flex;
   flex-direction: column;
+  opacity: 0;
+  animation: slide-in 0.3s ease forwards;
+}
+
+@keyframes slide-in {
+  0% {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .message {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   margin-bottom: 12px;
 }
+
+
 
 .message.sent {
   flex-direction: row-reverse;
   text-align: right;
+  padding-top: 8px;
 }
 
 .message.received {
@@ -158,6 +170,7 @@ export default defineComponent({
   height: 40px;
   border-radius: 50%;
   margin: 0 8px;
+  border: 1px solid #171717;
 }
 
 .message-content {
@@ -167,8 +180,12 @@ export default defineComponent({
   max-width: 70%;
 }
 
+.message-content > p {
+  margin: 0;
+}
+
 .message.sent .message-content {
-  background: #d1ffd6;
+  background: #e5e5e5;
 }
 
 .input-bar {
@@ -187,13 +204,15 @@ input {
 button {
   padding: 8px 16px;
   border: none;
-  background: #007bff;
+  background: #171717;
   color: white;
   cursor: pointer;
 }
 
 button:hover {
-  background: #0056b3;
+  background: #000;
 }
+
+
 </style>
 
